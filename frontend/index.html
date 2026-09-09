@@ -1,0 +1,493 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SplitVibe — Social, Expenses & Settings</title>
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@500;600;700;800&display=swap" rel="stylesheet">
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Main Style -->
+    <link rel="stylesheet" href="style.css">
+</head>
+<body data-theme="deep-space">
+    <div class="app-container">
+        <!-- Top Navigation Header -->
+        <header class="top-header">
+            <div class="brand">
+                <div class="logo-icon"><i class="fa-solid fa-bolt"></i></div>
+                <span class="brand-title">SplitVibe</span>
+            </div>
+
+            <div class="header-actions">
+                <button class="btn btn-sm btn-outline" id="open-ocr-modal" title="Scan Paper Receipt">
+                    <i class="fa-solid fa-receipt"></i> OCR Scanner
+                </button>
+                <!-- Current User Switcher -->
+                <div class="user-switcher-container">
+                    <span class="switch-label">Viewing As:</span>
+                    <div class="user-dropdown-custom" id="user-switcher-btn">
+                        <img id="current-user-avatar" src="" alt="Avatar">
+                        <span id="current-user-name">Loading...</span>
+                        <i class="fa-solid fa-chevron-down"></i>
+                    </div>
+                    <div class="user-menu-dropdown hidden" id="user-menu-dropdown"></div>
+                </div>
+            </div>
+        </header>
+
+        <!-- Main Workspace -->
+        <div class="workspace">
+            <!-- Sidebar Navigation -->
+            <aside class="sidebar">
+                <nav class="nav-menu">
+                    <button class="nav-btn active" data-tab="feed-tab">
+                        <i class="fa-solid fa-icons"></i>
+                        <span>Feed & Reels</span>
+                    </button>
+                    <button class="nav-btn" data-tab="chat-tab">
+                        <i class="fa-solid fa-comments"></i>
+                        <span>Messages</span>
+                        <span class="badge-pill" id="chat-unread-count">Live</span>
+                    </button>
+                    <button class="nav-btn" data-tab="squads-tab">
+                        <i class="fa-solid fa-people-group"></i>
+                        <span>Squads & Bills</span>
+                    </button>
+                    <button class="nav-btn" data-tab="itinerary-tab">
+                        <i class="fa-solid fa-plane-departure"></i>
+                        <span>Itineraries</span>
+                    </button>
+                    <button class="nav-btn" data-tab="settle-tab">
+                        <i class="fa-solid fa-scale-balanced"></i>
+                        <span>Debt Graph</span>
+                    </button>
+                    <button class="nav-btn" data-tab="analytics-tab">
+                        <i class="fa-solid fa-chart-pie"></i>
+                        <span>Analytics</span>
+                    </button>
+                    <button class="nav-btn" data-tab="settings-tab">
+                        <i class="fa-solid fa-gear"></i>
+                        <span>Settings</span>
+                    </button>
+                </nav>
+
+                <div class="sidebar-action">
+                    <button class="btn btn-primary" id="open-add-expense-modal">
+                        <i class="fa-solid fa-plus"></i> Add Expense
+                    </button>
+                </div>
+            </aside>
+
+            <!-- Main Content Panels -->
+            <main class="content-area">
+                
+                <!-- TAB 1: FEED & REELS -->
+                <section class="tab-panel active" id="feed-tab">
+                    <div class="panel-header">
+                        <h2>Social Activity</h2>
+                        <div class="toggle-group">
+                            <button class="toggle-btn active" id="filter-all-posts">All</button>
+                            <button class="toggle-btn" id="filter-photos"><i class="fa-regular fa-image"></i> Photos</button>
+                            <button class="toggle-btn" id="filter-reels"><i class="fa-solid fa-clapperboard"></i> Reels</button>
+                            <button class="btn btn-sm btn-secondary" id="open-create-post-modal">
+                                <i class="fa-solid fa-plus"></i> New Post
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="feed-grid" id="feed-container"></div>
+                </section>
+
+                <!-- TAB 2: MESSAGES & CHAT -->
+                <section class="tab-panel" id="chat-tab">
+                    <div class="chat-layout">
+                        <div class="chat-sidebar">
+                            <div class="chat-search">
+                                <i class="fa-solid fa-magnifying-glass"></i>
+                                <input type="text" placeholder="Search chats..." id="chat-search-input">
+                            </div>
+                            <div class="chat-section-label">Squad Channels</div>
+                            <div class="chat-list" id="squad-channels-list"></div>
+                            <div class="chat-section-label">Direct Messages</div>
+                            <div class="chat-list" id="direct-chats-list"></div>
+                        </div>
+
+                        <div class="chat-window">
+                            <div class="chat-header">
+                                <div class="chat-title-info">
+                                    <img id="chat-target-avatar" src="" alt="Avatar">
+                                    <div>
+                                        <h3 id="chat-target-name">Select a Chat</h3>
+                                        <span id="chat-target-status" class="status-sub">Real-time room</span>
+                                    </div>
+                                </div>
+                                <div class="chat-actions">
+                                    <button class="btn btn-sm btn-outline" id="chat-voice-btn" title="Voice Command">
+                                        <i class="fa-solid fa-microphone"></i> Voice Split
+                                    </button>
+                                    <button class="btn btn-sm btn-outline" id="chat-quick-bill-btn">
+                                        <i class="fa-solid fa-receipt"></i> Send Bill Request
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div class="chat-messages" id="chat-messages-container"></div>
+
+                            <div class="chat-input-bar">
+                                <input type="text" id="chat-text-input" placeholder="Write a message or ask squad to split...">
+                                <button class="btn btn-primary" id="chat-send-btn">
+                                    <i class="fa-solid fa-paper-plane"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- TAB 3: SQUADS & EXPENSES -->
+                <section class="tab-panel" id="squads-tab">
+                    <div class="panel-header">
+                        <h2>Your Squads</h2>
+                        <span class="sub-text">Manage group expenses, splits & memories</span>
+                    </div>
+
+                    <div class="squads-grid" id="squads-container"></div>
+
+                    <div class="squad-detail-section hidden" id="squad-detail-container">
+                        <div class="detail-header">
+                            <button class="btn btn-sm btn-secondary" id="back-to-squads-btn">
+                                <i class="fa-solid fa-arrow-left"></i> Back to Squads
+                            </button>
+                            <h3 id="selected-squad-title">Squad Expenses</h3>
+                        </div>
+                        <div class="expenses-list" id="squad-expenses-list"></div>
+                    </div>
+                </section>
+
+                <!-- TAB 4: ITINERARY PLANNER -->
+                <section class="tab-panel" id="itinerary-tab">
+                    <div class="panel-header">
+                        <h2>Squad Itineraries & Trip Planner</h2>
+                        <button class="btn btn-sm btn-primary" id="open-add-itinerary-modal">
+                            <i class="fa-solid fa-plus"></i> Add Event / Booking
+                        </button>
+                    </div>
+
+                    <div class="squad-select-bar" style="margin-bottom:20px;">
+                        <label>Select Squad:</label>
+                        <select id="itinerary-squad-select"></select>
+                    </div>
+
+                    <div class="itinerary-grid" id="itinerary-cards-container"></div>
+                </section>
+
+                <!-- TAB 5: SETTLE GRAPH -->
+                <section class="tab-panel" id="settle-tab">
+                    <div class="panel-header">
+                        <h2>Debt Graph Minimizer</h2>
+                        <span class="sub-text">Smart algorithm simplifies squad transactions to minimum payments</span>
+                    </div>
+
+                    <div class="settle-wrapper">
+                        <div class="squad-select-bar">
+                            <label>Select Squad:</label>
+                            <select id="settle-squad-select"></select>
+                        </div>
+
+                        <div class="settle-grid">
+                            <div class="glass-card balance-card">
+                                <h3><i class="fa-solid fa-scale-unbalanced"></i> Member Net Balances</h3>
+                                <div class="balances-list" id="net-balances-list"></div>
+                            </div>
+
+                            <div class="glass-card settlements-card">
+                                <h3><i class="fa-solid fa-bolt"></i> Optimized Settlements</h3>
+                                <p class="hint-text">No extra transfers! Algorithm calculated direct payouts:</p>
+                                <div class="settlements-list" id="simplified-settlements-list"></div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- TAB 6: ANALYTICS -->
+                <section class="tab-panel" id="analytics-tab">
+                    <div class="panel-header">
+                        <h2>Spending Analytics</h2>
+                        <span class="sub-text">Group spending breakdown by category</span>
+                    </div>
+
+                    <div class="analytics-wrapper">
+                        <div class="glass-card stat-summary-card">
+                            <div class="stat-box">
+                                <span class="stat-label">Total Group Spend</span>
+                                <span class="stat-value" id="stat-total-spent">$0.00</span>
+                            </div>
+                            <div class="stat-box">
+                                <span class="stat-label">Active Groups</span>
+                                <span class="stat-value" id="stat-active-groups">3</span>
+                            </div>
+                            <div class="stat-box">
+                                <span class="stat-label">Settlement Efficiency</span>
+                                <span class="stat-value highlight-green">100%</span>
+                            </div>
+                        </div>
+
+                        <div class="glass-card chart-card">
+                            <h3>Expense Categories Breakdown</h3>
+                            <div class="category-bars" id="category-bars-container"></div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- TAB 7: SETTINGS & CUSTOMIZATION -->
+                <section class="tab-panel" id="settings-tab">
+                    <div class="panel-header">
+                        <h2>Settings & Preferences</h2>
+                        <span class="sub-text">Customize your profile, notification rules, and visual theme</span>
+                    </div>
+
+                    <div class="settings-grid">
+                        <!-- Profile Card -->
+                        <div class="glass-card settings-card">
+                            <h3><i class="fa-solid fa-user-gear"></i> Profile Information</h3>
+                            <form id="profile-update-form" style="margin-top:14px;">
+                                <div class="form-group">
+                                    <label>Display Name</label>
+                                    <input type="text" id="setting-name-input" required>
+                                </div>
+                                <div class="form-group">
+                                    <label>Handle</label>
+                                    <input type="text" id="setting-handle-input" required>
+                                </div>
+                                <div class="form-group">
+                                    <label>Avatar URL</label>
+                                    <input type="url" id="setting-avatar-input" required>
+                                </div>
+                                <div class="form-group">
+                                    <label>Bio / Status</label>
+                                    <input type="text" id="setting-bio-input">
+                                </div>
+                                <div class="form-row">
+                                    <div class="form-group">
+                                        <label>Venmo Handle</label>
+                                        <input type="text" id="setting-venmo-input" placeholder="@venmo-username">
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Zelle / CashApp</label>
+                                        <input type="text" id="setting-zelle-input" placeholder="email/phone">
+                                    </div>
+                                </div>
+                                <button type="submit" class="btn btn-primary btn-sm" style="margin-top:10px;">Save Profile</button>
+                            </form>
+                        </div>
+
+                        <!-- Theme & Preferences -->
+                        <div class="glass-card settings-card">
+                            <h3><i class="fa-solid fa-palette"></i> Visual Theme & Aesthetics</h3>
+                            <p style="font-size:0.85rem; color:var(--text-muted); margin-bottom:14px;">Choose your primary UI theme backdrop</p>
+                            <div class="theme-options-grid">
+                                <div class="theme-option-card active" data-theme-name="deep-space">
+                                    <div class="theme-preview deep-space-bg"></div>
+                                    <span>Deep Space</span>
+                                </div>
+                                <div class="theme-option-card" data-theme-name="cyberpunk">
+                                    <div class="theme-preview cyberpunk-bg"></div>
+                                    <span>Cyberpunk Neon</span>
+                                </div>
+                                <div class="theme-option-card" data-theme-name="emerald">
+                                    <div class="theme-preview emerald-bg"></div>
+                                    <span>Emerald Dark</span>
+                                </div>
+                                <div class="theme-option-card" data-theme-name="light">
+                                    <div class="theme-preview light-bg"></div>
+                                    <span>Clean Light</span>
+                                </div>
+                            </div>
+
+                            <h3 style="margin-top:24px;"><i class="fa-solid fa-bell"></i> Notification Controls</h3>
+                            <div class="toggle-list" style="margin-top:10px; display:flex; flex-direction:column; gap:12px;">
+                                <label class="toggle-row">
+                                    <span>New Expense Alerts</span>
+                                    <input type="checkbox" id="notify-expenses-toggle" checked>
+                                </label>
+                                <label class="toggle-row">
+                                    <span>Debt Settlement Receipts</span>
+                                    <input type="checkbox" id="notify-settlements-toggle" checked>
+                                </label>
+                                <label class="toggle-row">
+                                    <span>Direct & Group Messages</span>
+                                    <input type="checkbox" id="notify-chat-toggle" checked>
+                                </label>
+                                <label class="toggle-row">
+                                    <span>Reel Likes & Comments</span>
+                                    <input type="checkbox" id="notify-likes-toggle" checked>
+                                </label>
+                            </div>
+                            <button class="btn btn-secondary btn-sm" id="save-settings-btn" style="margin-top:18px;">Save Settings</button>
+                        </div>
+                    </div>
+                </section>
+
+            </main>
+        </div>
+    </div>
+
+    <!-- MODAL 1: ADD EXPENSE -->
+    <div class="modal-overlay hidden" id="add-expense-modal">
+        <div class="modal-card">
+            <div class="modal-header">
+                <h3><i class="fa-solid fa-receipt"></i> Add New Expense</h3>
+                <button class="close-modal-btn">&times;</button>
+            </div>
+            <form id="add-expense-form">
+                <div class="form-group">
+                    <label>Squad / Group</label>
+                    <select id="exp-squad-select" required></select>
+                </div>
+                <div class="form-group">
+                    <label>Paid By</label>
+                    <select id="exp-paidby-select" required></select>
+                </div>
+                <div class="form-group">
+                    <label>Title / Description</label>
+                    <input type="text" id="exp-title-input" placeholder="e.g. Dinner, Cabin Rental" required>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Amount</label>
+                        <input type="number" step="0.01" id="exp-amount-input" placeholder="0.00" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Currency</label>
+                        <select id="exp-currency-select">
+                            <option value="USD">USD ($)</option>
+                            <option value="EUR">EUR (€)</option>
+                            <option value="GBP">GBP (£)</option>
+                            <option value="JPY">JPY (¥)</option>
+                            <option value="CAD">CAD ($)</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Category</label>
+                        <select id="exp-category-select">
+                            <option value="Dining">Dining 🍕</option>
+                            <option value="Travel">Travel 🏔️</option>
+                            <option value="Groceries">Groceries 🥩</option>
+                            <option value="Housing">Housing 🏠</option>
+                            <option value="Entertainment">Entertainment 🎟️</option>
+                            <option value="Bills">Bills ⚡</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>Memory Photo URL (Optional)</label>
+                    <input type="url" id="exp-photo-input" placeholder="https://images.unsplash.com/...">
+                </div>
+                <div class="form-actions">
+                    <button type="button" class="btn btn-secondary close-modal-btn">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Save & Split Expense</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- MODAL 2: CREATE POST / REEL -->
+    <div class="modal-overlay hidden" id="create-post-modal">
+        <div class="modal-card">
+            <div class="modal-header">
+                <h3><i class="fa-solid fa-camera"></i> Share Photo or Reel</h3>
+                <button class="close-modal-btn">&times;</button>
+            </div>
+            <form id="create-post-form">
+                <div class="form-group">
+                    <label>Post Type</label>
+                    <select id="post-type-select">
+                        <option value="photo">Photo Post 📸</option>
+                        <option value="reel">Video Reel 🎬</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Caption</label>
+                    <textarea id="post-caption-input" rows="3" placeholder="Share a story about your squad memory..." required></textarea>
+                </div>
+                <div class="form-group">
+                    <label>Media URL (Photo or MP4 Video)</label>
+                    <input type="url" id="post-media-input" placeholder="https://..." required>
+                </div>
+                <div class="form-group">
+                    <label>Tag Squad (Optional)</label>
+                    <select id="post-squad-select"></select>
+                </div>
+                <div class="form-actions">
+                    <button type="button" class="btn btn-secondary close-modal-btn">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Publish to Squad</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- MODAL 3: OCR RECEIPT SCANNER -->
+    <div class="modal-overlay hidden" id="ocr-modal">
+        <div class="modal-card">
+            <div class="modal-header">
+                <h3><i class="fa-solid fa-receipt"></i> AI Receipt Scanner</h3>
+                <button class="close-modal-btn">&times;</button>
+            </div>
+            <div class="form-group">
+                <label>Paste Receipt Text or Sample Bill</label>
+                <textarea id="ocr-sample-text" rows="5" placeholder="Luigi Italian Bistro&#10;Woodfired Pizza $24.50&#10;Craft IPA $16.00&#10;Caesar Salad $12.50&#10;Total $53.00"></textarea>
+            </div>
+            <button class="btn btn-primary" id="process-ocr-btn">Scan & Extract Itemized Lines</button>
+            <div id="ocr-results-container" style="margin-top:14px;"></div>
+        </div>
+    </div>
+
+    <!-- MODAL 4: ADD ITINERARY EVENT -->
+    <div class="modal-overlay hidden" id="add-itinerary-modal">
+        <div class="modal-card">
+            <div class="modal-header">
+                <h3><i class="fa-solid fa-calendar-plus"></i> Add Squad Activity / Flight</h3>
+                <button class="close-modal-btn">&times;</button>
+            </div>
+            <form id="add-itinerary-form">
+                <div class="form-group">
+                    <label>Squad</label>
+                    <select id="itin-squad-select" required></select>
+                </div>
+                <div class="form-group">
+                    <label>Event Title</label>
+                    <input type="text" id="itin-title-input" placeholder="e.g. Ski Lift Run, Sunset Dinner" required>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Date</label>
+                        <input type="date" id="itin-date-input" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Time</label>
+                        <input type="text" id="itin-time-input" placeholder="09:00 AM" required>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>Location / Venue</label>
+                    <input type="text" id="itin-location-input" placeholder="e.g. Heavenly Ski Resort">
+                </div>
+                <div class="form-group">
+                    <label>Est. Cost per Person ($)</label>
+                    <input type="number" step="0.01" id="itin-cost-input" placeholder="0.00">
+                </div>
+                <div class="form-actions">
+                    <button type="button" class="btn btn-secondary close-modal-btn">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Add Event</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Application Script -->
+    <script src="app.js"></script>
+</body>
+</html>
