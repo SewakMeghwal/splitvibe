@@ -1,6 +1,6 @@
 /**
- * SquadVault Frontend Application Logic Phase 2
- * Integrates REST APIs, WebSockets, Settings, Themes, Itineraries, OCR & Voice.
+ * SplitVibe Frontend Application Logic (Auth Enabled)
+ * REST APIs, WebSockets, Auth (Login/Signup/Logout), Settings, Themes, Itineraries, OCR & Voice.
  */
 
 const API_BASE = 'http://localhost:8000/api';
@@ -15,6 +15,7 @@ let wsConnection = null;
 document.addEventListener('DOMContentLoaded', async () => {
     initTabNavigation();
     initModals();
+    initAuthSystem();
     initSettingsAndThemes();
     await loadInitialData();
     setupUserSwitcher();
@@ -30,7 +31,21 @@ async function loadInitialData() {
         const squadsRes = await fetch(`${API_BASE}/squads`);
         squads = await squadsRes.json();
 
-        currentUser = users[0];
+        // Check localStorage for saved authenticated session
+        const savedUserStr = localStorage.getItem('splitvibe_user');
+        if (savedUserStr) {
+            try {
+                currentUser = JSON.parse(savedUserStr);
+                // Verify user still exists in DB list
+                const match = users.find(u => u.id === currentUser.id);
+                if (match) currentUser = match;
+            } catch (e) {
+                currentUser = users[0];
+            }
+        } else {
+            currentUser = users[0];
+        }
+
         updateUserUI();
 
         loadFeed();
@@ -50,6 +65,20 @@ function updateUserUI() {
     if (!currentUser) return;
     document.getElementById('current-user-avatar').src = currentUser.avatar;
     document.getElementById('current-user-name').textContent = currentUser.name;
+    
+    // Toggle Auth Buttons
+    const openAuthBtn = document.getElementById('open-auth-btn');
+    const logoutBtn = document.getElementById('logout-btn');
+
+    const isLoggedIn = localStorage.getItem('splitvibe_user') !== null;
+    if (isLoggedIn) {
+        openAuthBtn?.classList.add('hidden');
+        logoutBtn?.classList.remove('hidden');
+    } else {
+        openAuthBtn?.classList.remove('hidden');
+        logoutBtn?.classList.add('hidden');
+    }
+
     connectWebSocket();
 }
 
@@ -74,11 +103,129 @@ function setupUserSwitcher() {
 
 window.switchUser = function(userId) {
     currentUser = users.find(u => u.id === userId);
+    localStorage.setItem('splitvibe_user', JSON.stringify(currentUser));
     updateUserUI();
     document.getElementById('user-menu-dropdown').classList.add('hidden');
     loadChatMessages();
     loadUserSettings();
 };
+
+// --- AUTH SYSTEM (LOGIN / SIGNUP / LOGOUT) ---
+
+function initAuthSystem() {
+    const openAuthBtn = document.getElementById('open-auth-btn');
+    const logoutBtn = document.getElementById('logout-btn');
+    const authModal = document.getElementById('auth-modal');
+
+    const tabLogin = document.getElementById('auth-tab-login');
+    const tabSignup = document.getElementById('auth-tab-signup');
+    const loginForm = document.getElementById('login-form');
+    const signupForm = document.getElementById('signup-form');
+    const errorBanner = document.getElementById('auth-error-banner');
+
+    openAuthBtn?.addEventListener('click', () => {
+        errorBanner.classList.add('hidden');
+        authModal.classList.remove('hidden');
+    });
+
+    logoutBtn?.addEventListener('click', () => {
+        localStorage.removeItem('splitvibe_user');
+        currentUser = users[0];
+        updateUserUI();
+        alert('You have logged out.');
+    });
+
+    tabLogin?.addEventListener('click', () => {
+        tabLogin.classList.add('active');
+        tabSignup.classList.remove('active');
+        loginForm.classList.remove('hidden');
+        signupForm.classList.add('hidden');
+        errorBanner.classList.add('hidden');
+    });
+
+    tabSignup?.addEventListener('click', () => {
+        tabSignup.classList.add('active');
+        tabLogin.classList.remove('active');
+        signupForm.classList.remove('hidden');
+        loginForm.classList.add('hidden');
+        errorBanner.classList.add('hidden');
+    });
+
+    // Handle Login Submit
+    loginForm?.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const handle = document.getElementById('login-handle').value;
+        const password = document.getElementById('login-password').value;
+
+        try {
+            const res = await fetch(`${API_BASE}/auth/login`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ handle, password })
+            });
+
+            const data = await res.json();
+            if (!res.ok) {
+                errorBanner.textContent = data.detail || 'Login failed';
+                errorBanner.classList.remove('hidden');
+                return;
+            }
+
+            currentUser = data.user;
+            localStorage.setItem('splitvibe_user', JSON.stringify(currentUser));
+            updateUserUI();
+            authModal.classList.add('hidden');
+
+            alert(`Welcome back, ${currentUser.name}! 🚀`);
+
+        } catch (err) {
+            errorBanner.textContent = 'Server communication error';
+            errorBanner.classList.remove('hidden');
+        }
+    });
+
+    // Handle Signup Submit
+    signupForm?.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const name = document.getElementById('signup-name').value;
+        const handle = document.getElementById('signup-handle').value;
+        const avatar = document.getElementById('signup-avatar').value || undefined;
+        const bio = document.getElementById('signup-bio').value || undefined;
+        const password = document.getElementById('signup-password').value;
+
+        try {
+            const res = await fetch(`${API_BASE}/auth/register`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name, handle, avatar, bio, password })
+            });
+
+            const data = await res.json();
+            if (!res.ok) {
+                errorBanner.textContent = data.detail || 'Registration failed';
+                errorBanner.classList.remove('hidden');
+                return;
+            }
+
+            currentUser = data.user;
+            localStorage.setItem('splitvibe_user', JSON.stringify(currentUser));
+            
+            // Refresh users list
+            const usersRes = await fetch(`${API_BASE}/users`);
+            users = await usersRes.json();
+
+            updateUserUI();
+            setupUserSwitcher();
+            authModal.classList.add('hidden');
+
+            alert(`Account created! Welcome to SplitVibe, ${currentUser.name}! 🎉`);
+
+        } catch (err) {
+            errorBanner.textContent = 'Server communication error';
+            errorBanner.classList.remove('hidden');
+        }
+    });
+}
 
 // --- NAVIGATION TABS ---
 
@@ -376,7 +523,6 @@ async function triggerVoiceSplit() {
         });
         const parsed = await res.json();
 
-        // Auto fill add expense modal
         document.getElementById('exp-title-input').value = parsed.parsed_title;
         document.getElementById('exp-amount-input').value = parsed.parsed_amount;
         document.getElementById('add-expense-modal').classList.remove('hidden');
@@ -625,7 +771,6 @@ async function loadAnalytics() {
 async function loadUserSettings() {
     if (!currentUser) return;
 
-    // Populate profile form
     document.getElementById('setting-name-input').value = currentUser.name;
     document.getElementById('setting-handle-input').value = currentUser.handle;
     document.getElementById('setting-avatar-input').value = currentUser.avatar;
@@ -633,7 +778,6 @@ async function loadUserSettings() {
     document.getElementById('setting-venmo-input').value = currentUser.venmo_handle || '';
     document.getElementById('setting-zelle-input').value = currentUser.zelle_handle || '';
 
-    // Fetch user settings
     try {
         const res = await fetch(`${API_BASE}/users/${currentUser.id}/settings`);
         const settings = await res.json();
@@ -651,7 +795,6 @@ async function loadUserSettings() {
 }
 
 function initSettingsAndThemes() {
-    // Theme options click handler
     document.querySelectorAll('.theme-option-card').forEach(card => {
         card.addEventListener('click', () => {
             document.querySelectorAll('.theme-option-card').forEach(c => c.classList.remove('active'));
@@ -661,7 +804,6 @@ function initSettingsAndThemes() {
         });
     });
 
-    // Profile form submit
     document.getElementById('profile-update-form')?.addEventListener('submit', async (e) => {
         e.preventDefault();
         const name = document.getElementById('setting-name-input').value;
@@ -690,7 +832,6 @@ function initSettingsAndThemes() {
         }
     });
 
-    // Save Settings button
     document.getElementById('save-settings-btn')?.addEventListener('click', async () => {
         const activeThemeCard = document.querySelector('.theme-option-card.active');
         const theme = activeThemeCard ? activeThemeCard.getAttribute('data-theme-name') : 'deep-space';
@@ -785,6 +926,7 @@ function initModals() {
             postModal.classList.add('hidden');
             ocrModal.classList.add('hidden');
             itinModal.classList.add('hidden');
+            document.getElementById('auth-modal')?.classList.add('hidden');
         });
     });
 

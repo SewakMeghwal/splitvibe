@@ -1,9 +1,9 @@
 """
-SplitVibe FastAPI Server
-Includes Settings APIs, Profile Updates, OCR Receipt Parser, Currency FX, and Itineraries.
+SplitVibe FastAPI Server (Auth System Included)
+Includes REST APIs, Auth Register/Login, WebSockets, Debt Solver, Settings, OCR, and Itineraries.
 """
 
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException, Query, UploadFile, File
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException, Query, Header
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -14,12 +14,13 @@ import os
 from datetime import datetime
 
 from backend.database import get_db_connection, init_db
+from backend.auth import hash_password, verify_password
 from backend.debt_solver import simplify_debts
 from backend.chat_ws import manager
 from backend.ocr_parser import parse_receipt_text
 from backend.currency import convert_currency, EXCHANGE_RATES
 
-app = FastAPI(title="SplitVibe Backend", version="2.0.0")
+app = FastAPI(title="SplitVibe Backend", version="2.5.0")
 
 app.add_middleware(
     CORSMiddleware,
@@ -34,6 +35,17 @@ def on_startup():
     init_db()
 
 # Models
+class RegisterRequest(BaseModel):
+    name: str
+    handle: str
+    avatar: Optional[str] = "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80"
+    bio: Optional[str] = "SplitVibe Member ⚡"
+    password: str
+
+class LoginRequest(BaseModel):
+    handle: str
+    password: str
+
 class UserUpdate(BaseModel):
     name: str
     handle: str
@@ -97,12 +109,95 @@ class ItineraryCreate(BaseModel):
 class VoiceParseRequest(BaseModel):
     voice_text: str
 
+# --- AUTHENTICATION ENDPOINTS ---
+
+@app.post("/api/auth/register")
+def register_user(req: RegisterRequest):
+    conn = get_db_connection()
+    
+    # Check if handle exists
+    handle_clean = req.handle.strip()
+    if not handle_clean.startswith("@"):
+        handle_clean = f"@{handle_clean}"
+
+    existing = conn.execute("SELECT id FROM users WHERE LOWER(handle) = LOWER(?)", (handle_clean,)).fetchone()
+    if existing:
+        conn.close()
+        raise HTTPException(status_code=400, detail="Username handle is already taken")
+
+    user_id = f"u_{uuid.uuid4().hex[:8]}"
+    pwd_hash = hash_password(req.password)
+
+    conn.execute("""
+        INSERT INTO users (id, name, handle, avatar, bio, venmo_handle, zelle_handle, password_hash)
+        VALUES (?, ?, ?, ?, ?, '', '', ?)
+    """, (user_id, req.name, handle_clean, req.avatar, req.bio, pwd_hash))
+
+    # Add default user settings
+    conn.execute("""
+        INSERT INTO user_settings (user_id, theme, notify_expenses, notify_settlements, notify_chat, notify_likes)
+        VALUES (?, 'deep-space', 1, 1, 1, 1)
+    """, (user_id,))
+
+    # Automatically add to default Squad (sq1)
+    conn.execute("INSERT INTO squad_members (squad_id, user_id) VALUES ('sq1', ?)", (user_id,))
+
+    conn.commit()
+    user_row = conn.execute("SELECT id, name, handle, avatar, bio, venmo_handle, zelle_handle FROM users WHERE id = ?", (user_id,)).fetchone()
+    conn.close()
+
+    return {
+        "status": "success",
+        "user": dict(user_row),
+        "token": f"token_{user_id}"
+    }
+
+@app.post("/api/auth/login")
+def login_user(req: LoginRequest):
+    conn = get_db_connection()
+    handle_clean = req.handle.strip()
+    if not handle_clean.startswith("@"):
+        handle_clean = f"@{handle_clean}"
+
+    row = conn.execute("SELECT * FROM users WHERE LOWER(handle) = LOWER(?)", (handle_clean,)).fetchone()
+    if not row:
+        conn.close()
+        raise HTTPException(status_code=401, detail="User account not found")
+
+    user = dict(row)
+    if not verify_password(req.password, user.get("password_hash", "")):
+        conn.close()
+        raise HTTPException(status_code=401, detail="Invalid password credential")
+
+    conn.close()
+    del user["password_hash"]
+
+    return {
+        "status": "success",
+        "user": user,
+        "token": f"token_{user['id']}"
+    }
+
+@app.get("/api/auth/me")
+def get_current_user(x_user_id: Optional[str] = Header(None)):
+    if not x_user_id:
+        raise HTTPException(status_code=401, detail="Unauthenticated session")
+
+    conn = get_db_connection()
+    row = conn.execute("SELECT id, name, handle, avatar, bio, venmo_handle, zelle_handle FROM users WHERE id = ?", (x_user_id,)).fetchone()
+    conn.close()
+
+    if not row:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    return dict(row)
+
 # --- USERS & PROFILE ---
 
 @app.get("/api/users")
 def get_users():
     conn = get_db_connection()
-    users = conn.execute("SELECT * FROM users").fetchall()
+    users = conn.execute("SELECT id, name, handle, avatar, bio, venmo_handle, zelle_handle FROM users").fetchall()
     conn.close()
     return [dict(u) for u in users]
 
@@ -161,7 +256,7 @@ def get_squads():
     for s in squads:
         sq = dict(s)
         m_rows = conn.execute("""
-            SELECT u.* FROM users u 
+            SELECT u.id, u.name, u.handle, u.avatar, u.bio FROM users u 
             JOIN squad_members sm ON u.id = sm.user_id 
             WHERE sm.squad_id = ?
         """, (sq["id"],)).fetchall()
@@ -212,7 +307,6 @@ def create_expense(expense: ExpenseCreate):
     exp_id = f"exp_{uuid.uuid4().hex[:8]}"
     date_str = datetime.now().strftime("%Y-%m-%d")
 
-    # If foreign currency, convert to USD base
     final_amount = expense.amount
     if expense.currency and expense.currency != "USD":
         final_amount = convert_currency(expense.amount, expense.currency, "USD")
@@ -440,7 +534,6 @@ def get_fx_rates():
 @app.post("/api/voice/parse")
 def parse_voice_command(req: VoiceParseRequest):
     text = req.voice_text.lower()
-
     title = "Voice Expense"
     amount = 25.0
 

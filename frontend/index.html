@@ -26,7 +26,17 @@
                 <button class="btn btn-sm btn-outline" id="open-ocr-modal" title="Scan Paper Receipt">
                     <i class="fa-solid fa-receipt"></i> OCR Scanner
                 </button>
-                <!-- Current User Switcher -->
+
+                <!-- Auth Buttons -->
+                <button class="btn btn-sm btn-primary" id="open-auth-btn">
+                    <i class="fa-solid fa-user-lock"></i> Login / Sign Up
+                </button>
+
+                <button class="btn btn-sm btn-secondary hidden" id="logout-btn">
+                    <i class="fa-solid fa-right-from-bracket"></i> Logout
+                </button>
+
+                <!-- Demo User Switcher -->
                 <div class="user-switcher-container">
                     <span class="switch-label">Viewing As:</span>
                     <div class="user-dropdown-custom" id="user-switcher-btn">
@@ -332,6 +342,62 @@
                 </section>
 
             </main>
+        </div>
+    </div>
+
+    <!-- MODAL 0: LOGIN & SIGN UP AUTH MODAL -->
+    <div class="modal-overlay hidden" id="auth-modal">
+        <div class="modal-card">
+            <div class="modal-header">
+                <h3><i class="fa-solid fa-user-shield"></i> SplitVibe Account</h3>
+                <button class="close-modal-btn">&times;</button>
+            </div>
+            
+            <div class="auth-tabs" style="display:flex; gap:10px; margin-bottom:14px;">
+                <button class="toggle-btn active" id="auth-tab-login" style="flex:1;">Login 🔑</button>
+                <button class="toggle-btn" id="auth-tab-signup" style="flex:1;">Create Account 📝</button>
+            </div>
+
+            <div id="auth-error-banner" class="hidden" style="background:rgba(244,63,94,0.2); border:1px solid var(--accent-rose); color:#fff; padding:8px 12px; border-radius:8px; font-size:0.85rem; margin-bottom:12px;"></div>
+
+            <!-- LOGIN FORM -->
+            <form id="login-form">
+                <div class="form-group">
+                    <label>Username / Handle</label>
+                    <input type="text" id="login-handle" placeholder="@alex_r or alex_r" required>
+                </div>
+                <div class="form-group">
+                    <label>Password</label>
+                    <input type="password" id="login-password" placeholder="••••••••" required>
+                </div>
+                <button type="submit" class="btn btn-primary" style="width:100%; margin-top:10px;">Login to Account</button>
+                <p style="font-size:0.8rem; color:var(--text-muted); margin-top:10px; text-align:center;">Demo passwords: <code>password123</code></p>
+            </form>
+
+            <!-- SIGN UP FORM -->
+            <form id="signup-form" class="hidden">
+                <div class="form-group">
+                    <label>Full Name</label>
+                    <input type="text" id="signup-name" placeholder="e.g. Sarah Connor" required>
+                </div>
+                <div class="form-group">
+                    <label>Choose Handle / Username</label>
+                    <input type="text" id="signup-handle" placeholder="@sarah_c" required>
+                </div>
+                <div class="form-group">
+                    <label>Avatar Photo URL (Optional)</label>
+                    <input type="url" id="signup-avatar" placeholder="https://images.unsplash.com/...">
+                </div>
+                <div class="form-group">
+                    <label>Bio / Status</label>
+                    <input type="text" id="signup-bio" placeholder="Backpacker & food enthusiast">
+                </div>
+                <div class="form-group">
+                    <label>Create Password</label>
+                    <input type="password" id="signup-password" placeholder="At least 6 characters" required>
+                </div>
+                <button type="submit" class="btn btn-primary" style="width:100%; margin-top:10px;">Create SplitVibe Account</button>
+            </form>
         </div>
     </div>
 

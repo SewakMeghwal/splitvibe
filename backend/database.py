@@ -1,12 +1,13 @@
 """
-Database & Seed Generator for SquadVault (Phase 2 Updated)
-Includes User Settings, Itineraries, and extended user profiles.
+Database & Seed Generator for SplitVibe (Auth Updated)
+Includes password_hash, user_settings, itineraries, and social feeds.
 """
 
 import sqlite3
 import json
 import os
 from typing import Dict, List, Any
+from backend.auth import hash_password
 
 DB_FILE = os.path.join(os.path.dirname(__file__), "splitvibe.db")
 
@@ -19,16 +20,17 @@ def init_db():
     conn = get_db_connection()
     cursor = conn.cursor()
 
-    # Users
+    # Users (With password_hash)
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS users (
         id TEXT PRIMARY KEY,
         name TEXT NOT NULL,
-        handle TEXT NOT NULL,
+        handle TEXT NOT NULL UNIQUE,
         avatar TEXT NOT NULL,
         bio TEXT,
         venmo_handle TEXT,
-        zelle_handle TEXT
+        zelle_handle TEXT,
+        password_hash TEXT NOT NULL
     )
     """)
 
@@ -146,15 +148,16 @@ def init_db():
 def seed_demo_data(conn):
     cursor = conn.cursor()
 
-    users = [
-        ("u1", "Alex Rivera", "@alex_r", "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80", "Design lead & cabin planner 🏕️", "@alex-rivera-venmo", "alex@rivera.com"),
-        ("u2", "Maya Lin", "@maya_tech", "https://images.unsplash.com/photo-1517841905240-472988babdf9?w=150&auto=format&fit=crop&q=80", "Software dev & coffee enthusiast ☕", "@maya-lin-venmo", "maya@lin.com"),
-        ("u3", "Sam Chen", "@sam_c", "https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=150&auto=format&fit=crop&q=80", "Photographer & master chef 🍳", "@sam-chen-venmo", "sam@chen.com"),
-        ("u4", "Jordan Taylor", "@jordan_t", "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&auto=format&fit=crop&q=80", "Traveler & playlist curator 🎧", "@jordan-taylor-venmo", "jordan@taylor.com")
-    ]
-    cursor.executemany("INSERT INTO users VALUES (?, ?, ?, ?, ?, ?, ?)", users)
+    default_pwd_hash = hash_password("password123")
 
-    # User Settings
+    users = [
+        ("u1", "Alex Rivera", "@alex_r", "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80", "Design lead & cabin planner 🏕️", "@alex-rivera-venmo", "alex@rivera.com", default_pwd_hash),
+        ("u2", "Maya Lin", "@maya_tech", "https://images.unsplash.com/photo-1517841905240-472988babdf9?w=150&auto=format&fit=crop&q=80", "Software dev & coffee enthusiast ☕", "@maya-lin-venmo", "maya@lin.com", default_pwd_hash),
+        ("u3", "Sam Chen", "@sam_c", "https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=150&auto=format&fit=crop&q=80", "Photographer & master chef 🍳", "@sam-chen-venmo", "sam@chen.com", default_pwd_hash),
+        ("u4", "Jordan Taylor", "@jordan_t", "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&auto=format&fit=crop&q=80", "Traveler & playlist curator 🎧", "@jordan-taylor-venmo", "jordan@taylor.com", default_pwd_hash)
+    ]
+    cursor.executemany("INSERT INTO users VALUES (?, ?, ?, ?, ?, ?, ?, ?)", users)
+
     settings = [
         ("u1", "deep-space", 1, 1, 1, 1),
         ("u2", "cyberpunk", 1, 1, 1, 1),
@@ -251,7 +254,6 @@ def seed_demo_data(conn):
     ]
     cursor.executemany("INSERT INTO messages (id, chat_type, sender_id, target_id, text, expense_request) VALUES (?, ?, ?, ?, ?, ?)", messages)
 
-    # Sample Itineraries
     itineraries = [
         ("it1", "sq1", "Ski Lift & Mountain Pass Run", "2026-09-09", "09:00 AM", "Heavenly Ski Resort", 60.0, 4, "u1"),
         ("it2", "sq1", "Sunset Lake Tahoe Dinner", "2026-09-09", "06:30 PM", "The Boathouse Grill", 45.0, 3, "u3"),
