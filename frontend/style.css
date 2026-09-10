@@ -1,4 +1,4 @@
-/* SquadVault Premium Design System Phase 2 */
+/* SplitVibe Premium Design System */
 :root {
     --bg-dark: #0b0f19;
     --bg-card: rgba(23, 32, 54, 0.7);
@@ -26,8 +26,6 @@
 }
 
 /* THEMES */
-
-/* Cyberpunk Neon */
 body[data-theme="cyberpunk"] {
     --bg-dark: #090014;
     --bg-card: rgba(30, 10, 50, 0.75);
@@ -38,7 +36,6 @@ body[data-theme="cyberpunk"] {
     --accent-emerald: #39ff14;
 }
 
-/* Emerald Dark */
 body[data-theme="emerald"] {
     --bg-dark: #021a12;
     --bg-card: rgba(6, 44, 32, 0.75);
@@ -49,7 +46,6 @@ body[data-theme="emerald"] {
     --accent-emerald: #10b981;
 }
 
-/* Clean Light Mode */
 body[data-theme="light"] {
     --bg-dark: #f1f5f9;
     --bg-card: rgba(255, 255, 255, 0.85);
@@ -742,7 +738,41 @@ body {
     margin-left: 0;
 }
 
-/* Itinerary Grid */
+/* DRAG & DROP DROPZONE COMPONENTS */
+.dropzone {
+    border: 2px dashed var(--border-color);
+    border-radius: 12px;
+    padding: 20px;
+    text-align: center;
+    background: rgba(255, 255, 255, 0.02);
+    cursor: pointer;
+    transition: var(--transition);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    color: var(--text-secondary);
+}
+
+.dropzone:hover, .dropzone.dragover {
+    border-color: var(--primary);
+    background: rgba(139, 92, 246, 0.1);
+    color: #fff;
+}
+
+.dropzone i {
+    font-size: 1.8rem;
+    color: var(--primary);
+}
+
+.dropzone span {
+    font-size: 0.85rem;
+}
+
+.file-input-hidden {
+    display: none;
+}
+
 .itinerary-grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
@@ -902,7 +932,6 @@ body {
     border-radius: 5px;
 }
 
-/* SETTINGS TAB */
 .settings-grid {
     display: grid;
     grid-template-columns: 1fr 1fr;

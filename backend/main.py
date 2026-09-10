@@ -1,9 +1,9 @@
 """
-SplitVibe FastAPI Server (Auth System Included)
-Includes REST APIs, Auth Register/Login, WebSockets, Debt Solver, Settings, OCR, and Itineraries.
+SplitVibe FastAPI Server
+Includes File Uploads (Drag & Drop), Squad Creation, Auth, REST APIs, WebSockets, OCR, and FX.
 """
 
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException, Query, Header
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException, Query, Header, File, UploadFile
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -11,6 +11,7 @@ from typing import List, Optional, Dict, Any
 import json
 import uuid
 import os
+import shutil
 from datetime import datetime
 
 from backend.database import get_db_connection, init_db
@@ -20,7 +21,7 @@ from backend.chat_ws import manager
 from backend.ocr_parser import parse_receipt_text
 from backend.currency import convert_currency, EXCHANGE_RATES
 
-app = FastAPI(title="SplitVibe Backend", version="2.5.0")
+app = FastAPI(title="SplitVibe Backend", version="3.0.0")
 
 app.add_middleware(
     CORSMiddleware,
@@ -29,6 +30,10 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Upload directory
+UPLOAD_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "frontend", "uploads")
+os.makedirs(UPLOAD_DIR, exist_ok=True)
 
 @app.on_event("startup")
 def on_startup():
@@ -60,6 +65,13 @@ class SettingsUpdate(BaseModel):
     notify_settlements: bool
     notify_chat: bool
     notify_likes: bool
+
+class SquadCreate(BaseModel):
+    name: str
+    description: Optional[str] = ""
+    avatar: Optional[str] = "https://images.unsplash.com/photo-1542601906990-b4d3fb778b09?w=300&auto=format&fit=crop&q=80"
+    category: str
+    member_ids: List[str]
 
 class ExpenseCreate(BaseModel):
     squad_id: str
@@ -109,13 +121,28 @@ class ItineraryCreate(BaseModel):
 class VoiceParseRequest(BaseModel):
     voice_text: str
 
-# --- AUTHENTICATION ENDPOINTS ---
+# --- DIRECT FILE UPLOAD ENDPOINT ---
+
+@app.post("/api/upload")
+async def upload_file(file: UploadFile = File(...)):
+    ext = os.path.splitext(file.filename)[1]
+    unique_filename = f"{uuid.uuid4().hex[:12]}{ext}"
+    file_path = os.path.join(UPLOAD_DIR, unique_filename)
+
+    with open(file_path, "wb") as buffer:
+        shutil.copyfileobj(file.file, buffer)
+
+    return {
+        "status": "success",
+        "filename": unique_filename,
+        "url": f"/uploads/{unique_filename}"
+    }
+
+# --- AUTHENTICATION ---
 
 @app.post("/api/auth/register")
 def register_user(req: RegisterRequest):
     conn = get_db_connection()
-    
-    # Check if handle exists
     handle_clean = req.handle.strip()
     if not handle_clean.startswith("@"):
         handle_clean = f"@{handle_clean}"
@@ -133,14 +160,10 @@ def register_user(req: RegisterRequest):
         VALUES (?, ?, ?, ?, ?, '', '', ?)
     """, (user_id, req.name, handle_clean, req.avatar, req.bio, pwd_hash))
 
-    # Add default user settings
     conn.execute("""
         INSERT INTO user_settings (user_id, theme, notify_expenses, notify_settlements, notify_chat, notify_likes)
         VALUES (?, 'deep-space', 1, 1, 1, 1)
     """, (user_id,))
-
-    # Automatically add to default Squad (sq1)
-    conn.execute("INSERT INTO squad_members (squad_id, user_id) VALUES ('sq1', ?)", (user_id,))
 
     conn.commit()
     user_row = conn.execute("SELECT id, name, handle, avatar, bio, venmo_handle, zelle_handle FROM users WHERE id = ?", (user_id,)).fetchone()
@@ -251,7 +274,7 @@ def update_user_settings(user_id: str, settings: SettingsUpdate):
 @app.get("/api/squads")
 def get_squads():
     conn = get_db_connection()
-    squads = conn.execute("SELECT * FROM squads").fetchall()
+    squads = conn.execute("SELECT * FROM squads ORDER BY created_at DESC").fetchall()
     result = []
     for s in squads:
         sq = dict(s)
@@ -264,6 +287,23 @@ def get_squads():
         result.append(sq)
     conn.close()
     return result
+
+@app.post("/api/squads")
+def create_squad(squad: SquadCreate):
+    conn = get_db_connection()
+    sq_id = f"sq_{uuid.uuid4().hex[:8]}"
+
+    conn.execute("""
+        INSERT INTO squads (id, name, description, avatar, category)
+        VALUES (?, ?, ?, ?, ?)
+    """, (sq_id, squad.name, squad.description, squad.avatar, squad.category))
+
+    for uid in squad.member_ids:
+        conn.execute("INSERT OR IGNORE INTO squad_members (squad_id, user_id) VALUES (?, ?)", (sq_id, uid))
+
+    conn.commit()
+    conn.close()
+    return {"status": "created", "squad_id": sq_id}
 
 @app.get("/api/squads/{squad_id}/summary")
 def get_squad_summary(squad_id: str):
@@ -585,7 +625,7 @@ async def websocket_endpoint(websocket: WebSocket, user_id: str):
     except WebSocketDisconnect:
         manager.disconnect(websocket)
 
-# Serve Frontend
+# Mount Uploads directory
 FRONTEND_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "frontend")
 if os.path.exists(FRONTEND_DIR):
     app.mount("/", StaticFiles(directory=FRONTEND_DIR, html=True), name="frontend")

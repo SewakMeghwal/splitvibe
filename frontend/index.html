@@ -85,9 +85,12 @@
                     </button>
                 </nav>
 
-                <div class="sidebar-action">
+                <div class="sidebar-action" style="display:flex; flex-direction:column; gap:8px;">
                     <button class="btn btn-primary" id="open-add-expense-modal">
                         <i class="fa-solid fa-plus"></i> Add Expense
+                    </button>
+                    <button class="btn btn-secondary btn-sm" id="open-create-squad-modal">
+                        <i class="fa-solid fa-users-plus"></i> Create Squad
                     </button>
                 </div>
             </aside>
@@ -161,7 +164,9 @@
                 <section class="tab-panel" id="squads-tab">
                     <div class="panel-header">
                         <h2>Your Squads</h2>
-                        <span class="sub-text">Manage group expenses, splits & memories</span>
+                        <button class="btn btn-primary btn-sm" id="open-create-squad-modal-2">
+                            <i class="fa-solid fa-plus"></i> Create New Squad
+                        </button>
                     </div>
 
                     <div class="squads-grid" id="squads-container"></div>
@@ -237,7 +242,7 @@
                             </div>
                             <div class="stat-box">
                                 <span class="stat-label">Active Groups</span>
-                                <span class="stat-value" id="stat-active-groups">3</span>
+                                <span class="stat-value" id="stat-active-groups">0</span>
                             </div>
                             <div class="stat-box">
                                 <span class="stat-label">Settlement Efficiency</span>
@@ -260,7 +265,6 @@
                     </div>
 
                     <div class="settings-grid">
-                        <!-- Profile Card -->
                         <div class="glass-card settings-card">
                             <h3><i class="fa-solid fa-user-gear"></i> Profile Information</h3>
                             <form id="profile-update-form" style="margin-top:14px;">
@@ -273,8 +277,13 @@
                                     <input type="text" id="setting-handle-input" required>
                                 </div>
                                 <div class="form-group">
-                                    <label>Avatar URL</label>
-                                    <input type="url" id="setting-avatar-input" required>
+                                    <label>Avatar Media (Drag & Drop or URL)</label>
+                                    <div class="dropzone" id="profile-avatar-dropzone">
+                                        <i class="fa-solid fa-cloud-arrow-up"></i>
+                                        <span>Click or Drag & Drop photo here</span>
+                                        <input type="file" class="file-input-hidden" accept="image/*">
+                                    </div>
+                                    <input type="url" id="setting-avatar-input" placeholder="https://..." style="margin-top:6px;" required>
                                 </div>
                                 <div class="form-group">
                                     <label>Bio / Status</label>
@@ -294,7 +303,6 @@
                             </form>
                         </div>
 
-                        <!-- Theme & Preferences -->
                         <div class="glass-card settings-card">
                             <h3><i class="fa-solid fa-palette"></i> Visual Theme & Aesthetics</h3>
                             <p style="font-size:0.85rem; color:var(--text-muted); margin-bottom:14px;">Choose your primary UI theme backdrop</p>
@@ -345,7 +353,7 @@
         </div>
     </div>
 
-    <!-- MODAL 0: LOGIN & SIGN UP AUTH MODAL -->
+    <!-- MODAL 0: AUTH MODAL -->
     <div class="modal-overlay hidden" id="auth-modal">
         <div class="modal-card">
             <div class="modal-header">
@@ -360,21 +368,18 @@
 
             <div id="auth-error-banner" class="hidden" style="background:rgba(244,63,94,0.2); border:1px solid var(--accent-rose); color:#fff; padding:8px 12px; border-radius:8px; font-size:0.85rem; margin-bottom:12px;"></div>
 
-            <!-- LOGIN FORM -->
             <form id="login-form">
                 <div class="form-group">
                     <label>Username / Handle</label>
-                    <input type="text" id="login-handle" placeholder="@alex_r or alex_r" required>
+                    <input type="text" id="login-handle" placeholder="@username or username" required>
                 </div>
                 <div class="form-group">
                     <label>Password</label>
                     <input type="password" id="login-password" placeholder="••••••••" required>
                 </div>
                 <button type="submit" class="btn btn-primary" style="width:100%; margin-top:10px;">Login to Account</button>
-                <p style="font-size:0.8rem; color:var(--text-muted); margin-top:10px; text-align:center;">Demo passwords: <code>password123</code></p>
             </form>
 
-            <!-- SIGN UP FORM -->
             <form id="signup-form" class="hidden">
                 <div class="form-group">
                     <label>Full Name</label>
@@ -385,8 +390,13 @@
                     <input type="text" id="signup-handle" placeholder="@sarah_c" required>
                 </div>
                 <div class="form-group">
-                    <label>Avatar Photo URL (Optional)</label>
-                    <input type="url" id="signup-avatar" placeholder="https://images.unsplash.com/...">
+                    <label>Avatar Photo (Drag & Drop or URL)</label>
+                    <div class="dropzone" id="signup-avatar-dropzone">
+                        <i class="fa-solid fa-cloud-arrow-up"></i>
+                        <span>Click or Drag & Drop avatar here</span>
+                        <input type="file" class="file-input-hidden" accept="image/*">
+                    </div>
+                    <input type="url" id="signup-avatar" placeholder="https://..." style="margin-top:6px;">
                 </div>
                 <div class="form-group">
                     <label>Bio / Status</label>
@@ -449,8 +459,13 @@
                     </div>
                 </div>
                 <div class="form-group">
-                    <label>Memory Photo URL (Optional)</label>
-                    <input type="url" id="exp-photo-input" placeholder="https://images.unsplash.com/...">
+                    <label>Memory Photo (Drag & Drop or URL)</label>
+                    <div class="dropzone" id="exp-photo-dropzone">
+                        <i class="fa-solid fa-cloud-arrow-up"></i>
+                        <span>Click or Drag & Drop receipt photo here</span>
+                        <input type="file" class="file-input-hidden" accept="image/*">
+                    </div>
+                    <input type="url" id="exp-photo-input" placeholder="https://..." style="margin-top:6px;">
                 </div>
                 <div class="form-actions">
                     <button type="button" class="btn btn-secondary close-modal-btn">Cancel</button>
@@ -464,7 +479,7 @@
     <div class="modal-overlay hidden" id="create-post-modal">
         <div class="modal-card">
             <div class="modal-header">
-                <h3><i class="fa-solid fa-camera"></i> Share Photo or Reel</h3>
+                <h3><i class="fa-solid fa-camera"></i> Share Photo or Video Reel</h3>
                 <button class="close-modal-btn">&times;</button>
             </div>
             <form id="create-post-form">
@@ -480,8 +495,13 @@
                     <textarea id="post-caption-input" rows="3" placeholder="Share a story about your squad memory..." required></textarea>
                 </div>
                 <div class="form-group">
-                    <label>Media URL (Photo or MP4 Video)</label>
-                    <input type="url" id="post-media-input" placeholder="https://..." required>
+                    <label>Media File (Drag & Drop Image or MP4 Video)</label>
+                    <div class="dropzone" id="post-media-dropzone">
+                        <i class="fa-solid fa-cloud-arrow-up"></i>
+                        <span>Click or Drag & Drop photo/video file here</span>
+                        <input type="file" class="file-input-hidden" accept="image/*,video/mp4,video/*">
+                    </div>
+                    <input type="url" id="post-media-input" placeholder="https://..." style="margin-top:6px;" required>
                 </div>
                 <div class="form-group">
                     <label>Tag Squad (Optional)</label>
@@ -495,7 +515,54 @@
         </div>
     </div>
 
-    <!-- MODAL 3: OCR RECEIPT SCANNER -->
+    <!-- MODAL 3: CREATE SQUAD / GROUP -->
+    <div class="modal-overlay hidden" id="create-squad-modal">
+        <div class="modal-card">
+            <div class="modal-header">
+                <h3><i class="fa-solid fa-users-rectangle"></i> Create New Squad</h3>
+                <button class="close-modal-btn">&times;</button>
+            </div>
+            <form id="create-squad-form">
+                <div class="form-group">
+                    <label>Squad Name</label>
+                    <input type="text" id="squad-name-input" placeholder="e.g. Summer Roadtrip 2026, Apt 4B" required>
+                </div>
+                <div class="form-group">
+                    <label>Description</label>
+                    <input type="text" id="squad-desc-input" placeholder="e.g. Shared expenses for cabin & ski tickets">
+                </div>
+                <div class="form-group">
+                    <label>Category</label>
+                    <select id="squad-cat-select">
+                        <option value="Travel">Travel 🏔️</option>
+                        <option value="Housing">Housing 🏠</option>
+                        <option value="Dining">Dining 🍕</option>
+                        <option value="Event">Event 🎉</option>
+                        <option value="General">General ⚡</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Squad Cover / Image (Drag & Drop or URL)</label>
+                    <div class="dropzone" id="squad-avatar-dropzone">
+                        <i class="fa-solid fa-cloud-arrow-up"></i>
+                        <span>Click or Drag & Drop cover photo here</span>
+                        <input type="file" class="file-input-hidden" accept="image/*">
+                    </div>
+                    <input type="url" id="squad-avatar-input" placeholder="https://..." style="margin-top:6px;">
+                </div>
+                <div class="form-group">
+                    <label>Select Initial Members</label>
+                    <div class="members-checkbox-list" id="squad-members-checkboxes" style="display:flex; flex-direction:column; gap:6px; max-height:120px; overflow-y:auto;"></div>
+                </div>
+                <div class="form-actions">
+                    <button type="button" class="btn btn-secondary close-modal-btn">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Create Squad</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- MODAL 4: OCR RECEIPT SCANNER -->
     <div class="modal-overlay hidden" id="ocr-modal">
         <div class="modal-card">
             <div class="modal-header">
@@ -511,7 +578,7 @@
         </div>
     </div>
 
-    <!-- MODAL 4: ADD ITINERARY EVENT -->
+    <!-- MODAL 5: ADD ITINERARY EVENT -->
     <div class="modal-overlay hidden" id="add-itinerary-modal">
         <div class="modal-card">
             <div class="modal-header">

@@ -1,6 +1,6 @@
 /**
- * SplitVibe Frontend Application Logic (Auth Enabled)
- * REST APIs, WebSockets, Auth (Login/Signup/Logout), Settings, Themes, Itineraries, OCR & Voice.
+ * SplitVibe Frontend Application Logic (Production Ready)
+ * Includes Squad Creation, Drag & Drop Uploads, Auth, WebSockets, Settings, OCR, & FX.
  */
 
 const API_BASE = 'http://localhost:8000/api';
@@ -9,19 +9,20 @@ const WS_BASE = 'ws://localhost:8000/ws';
 let users = [];
 let squads = [];
 let currentUser = null;
-let activeChat = { type: 'group', id: 'sq1', name: 'Tahoe Ski Roadtrip 🏔️', avatar: '' };
+let activeChat = { type: 'group', id: '', name: 'Select a Chat', avatar: '' };
 let wsConnection = null;
 
 document.addEventListener('DOMContentLoaded', async () => {
     initTabNavigation();
     initModals();
+    initDropzones();
     initAuthSystem();
     initSettingsAndThemes();
     await loadInitialData();
     setupUserSwitcher();
 });
 
-// --- INITIALIZATION & USER SWITCHING ---
+// --- INITIALIZATION ---
 
 async function loadInitialData() {
     try {
@@ -31,27 +32,32 @@ async function loadInitialData() {
         const squadsRes = await fetch(`${API_BASE}/squads`);
         squads = await squadsRes.json();
 
-        // Check localStorage for saved authenticated session
+        // Check localStorage for saved user session
         const savedUserStr = localStorage.getItem('splitvibe_user');
         if (savedUserStr) {
             try {
                 currentUser = JSON.parse(savedUserStr);
-                // Verify user still exists in DB list
                 const match = users.find(u => u.id === currentUser.id);
                 if (match) currentUser = match;
             } catch (e) {
-                currentUser = users[0];
+                currentUser = users[0] || null;
             }
         } else {
-            currentUser = users[0];
+            currentUser = users[0] || null;
+        }
+
+        if (squads.length > 0) {
+            activeChat = { type: 'group', id: squads[0].id, name: squads[0].name, avatar: squads[0].avatar };
         }
 
         updateUserUI();
 
         loadFeed();
         loadSquads();
-        loadItineraries(squads[0]?.id || 'sq1');
-        loadDebtGraph(squads[0]?.id || 'sq1');
+        if (squads.length > 0) {
+            loadItineraries(squads[0].id);
+            loadDebtGraph(squads[0].id);
+        }
         loadAnalytics();
         initChatSystem();
         loadUserSettings();
@@ -62,13 +68,14 @@ async function loadInitialData() {
 }
 
 function updateUserUI() {
-    if (!currentUser) return;
-    document.getElementById('current-user-avatar').src = currentUser.avatar;
-    document.getElementById('current-user-name').textContent = currentUser.name;
-    
-    // Toggle Auth Buttons
     const openAuthBtn = document.getElementById('open-auth-btn');
     const logoutBtn = document.getElementById('logout-btn');
+
+    if (currentUser) {
+        document.getElementById('current-user-avatar').src = currentUser.avatar;
+        document.getElementById('current-user-name').textContent = currentUser.name;
+        connectWebSocket();
+    }
 
     const isLoggedIn = localStorage.getItem('splitvibe_user') !== null;
     if (isLoggedIn) {
@@ -78,39 +85,107 @@ function updateUserUI() {
         openAuthBtn?.classList.remove('hidden');
         logoutBtn?.classList.add('hidden');
     }
-
-    connectWebSocket();
 }
 
 function setupUserSwitcher() {
     const btn = document.getElementById('user-switcher-btn');
     const dropdown = document.getElementById('user-menu-dropdown');
 
-    btn.addEventListener('click', () => {
+    btn?.addEventListener('click', () => {
         dropdown.classList.toggle('hidden');
     });
 
-    dropdown.innerHTML = users.map(u => `
-        <div class="user-option" onclick="switchUser('${u.id}')">
-            <img src="${u.avatar}" alt="${u.name}">
-            <div>
-                <div style="font-size:0.85rem; font-weight:600;">${u.name}</div>
-                <div style="font-size:0.75rem; color:var(--text-muted);">${u.handle}</div>
+    if (dropdown) {
+        dropdown.innerHTML = users.map(u => `
+            <div class="user-option" onclick="switchUser('${u.id}')">
+                <img src="${u.avatar}" alt="${u.name}">
+                <div>
+                    <div style="font-size:0.85rem; font-weight:600;">${u.name}</div>
+                    <div style="font-size:0.75rem; color:var(--text-muted);">${u.handle}</div>
+                </div>
             </div>
-        </div>
-    `).join('');
+        `).join('');
+    }
 }
 
 window.switchUser = function(userId) {
     currentUser = users.find(u => u.id === userId);
     localStorage.setItem('splitvibe_user', JSON.stringify(currentUser));
     updateUserUI();
-    document.getElementById('user-menu-dropdown').classList.add('hidden');
+    document.getElementById('user-menu-dropdown')?.classList.add('hidden');
     loadChatMessages();
     loadUserSettings();
 };
 
-// --- AUTH SYSTEM (LOGIN / SIGNUP / LOGOUT) ---
+// --- DRAG & DROP FILE UPLOAD HANDLER ---
+
+function initDropzones() {
+    setupDropzone('signup-avatar-dropzone', 'signup-avatar');
+    setupDropzone('profile-avatar-dropzone', 'setting-avatar-input');
+    setupDropzone('exp-photo-dropzone', 'exp-photo-input');
+    setupDropzone('post-media-dropzone', 'post-media-input');
+    setupDropzone('squad-avatar-dropzone', 'squad-avatar-input');
+}
+
+function setupDropzone(dropzoneId, inputTargetId) {
+    const dz = document.getElementById(dropzoneId);
+    const targetInput = document.getElementById(inputTargetId);
+    if (!dz || !targetInput) return;
+
+    const fileInput = dz.querySelector('.file-input-hidden');
+
+    dz.addEventListener('click', () => fileInput?.click());
+
+    dz.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        dz.classList.add('dragover');
+    });
+
+    dz.addEventListener('dragleave', () => dz.classList.remove('dragover'));
+
+    dz.addEventListener('drop', (e) => {
+        e.preventDefault();
+        dz.classList.remove('dragover');
+        if (e.dataTransfer.files.length > 0) {
+            handleFileUpload(e.dataTransfer.files[0], dz, targetInput);
+        }
+    });
+
+    fileInput?.addEventListener('change', (e) => {
+        if (e.target.files.length > 0) {
+            handleFileUpload(e.target.files[0], dz, targetInput);
+        }
+    });
+}
+
+async function handleFileUpload(file, dropzoneEl, targetInputEl) {
+    const textSpan = dropzoneEl.querySelector('span');
+    if (textSpan) textSpan.textContent = `Uploading ${file.name}...`;
+
+    const formData = new FormData();
+    formData.append('file', file);
+
+    try {
+        const res = await fetch(`${API_BASE}/upload`, {
+            method: 'POST',
+            body: formData
+        });
+
+        const data = await res.json();
+        if (res.ok && data.url) {
+            targetInputEl.value = data.url;
+            if (textSpan) textSpan.textContent = `Uploaded: ${file.name}`;
+            dropzoneEl.style.borderColor = 'var(--accent-emerald)';
+        } else {
+            if (textSpan) textSpan.textContent = 'Upload failed!';
+        }
+    } catch (err) {
+        console.error(err);
+        if (textSpan) textSpan.textContent = 'Upload error!';
+    }
+}
+
+// --- AUTH SYSTEM ---
 
 function initAuthSystem() {
     const openAuthBtn = document.getElementById('open-auth-btn');
@@ -130,7 +205,7 @@ function initAuthSystem() {
 
     logoutBtn?.addEventListener('click', () => {
         localStorage.removeItem('splitvibe_user');
-        currentUser = users[0];
+        currentUser = null;
         updateUserUI();
         alert('You have logged out.');
     });
@@ -151,7 +226,6 @@ function initAuthSystem() {
         errorBanner.classList.add('hidden');
     });
 
-    // Handle Login Submit
     loginForm?.addEventListener('submit', async (e) => {
         e.preventDefault();
         const handle = document.getElementById('login-handle').value;
@@ -184,7 +258,6 @@ function initAuthSystem() {
         }
     });
 
-    // Handle Signup Submit
     signupForm?.addEventListener('submit', async (e) => {
         e.preventDefault();
         const name = document.getElementById('signup-name').value;
@@ -210,7 +283,6 @@ function initAuthSystem() {
             currentUser = data.user;
             localStorage.setItem('splitvibe_user', JSON.stringify(currentUser));
             
-            // Refresh users list
             const usersRes = await fetch(`${API_BASE}/users`);
             users = await usersRes.json();
 
@@ -238,7 +310,7 @@ function initTabNavigation() {
 
             btn.classList.add('active');
             const tabId = btn.getAttribute('data-tab');
-            document.getElementById(tabId).classList.add('active');
+            document.getElementById(tabId)?.classList.add('active');
         });
     });
 }
@@ -247,6 +319,7 @@ function initTabNavigation() {
 
 async function loadFeed(filterType = null) {
     const container = document.getElementById('feed-container');
+    if (!container) return;
     container.innerHTML = '<div style="color:var(--text-muted);">Loading posts...</div>';
 
     try {
@@ -257,7 +330,7 @@ async function loadFeed(filterType = null) {
         const posts = await res.json();
 
         if (posts.length === 0) {
-            container.innerHTML = '<div style="color:var(--text-muted);">No posts yet! Share a squad moment.</div>';
+            container.innerHTML = '<div style="color:var(--text-muted);">No posts yet! Be the first to share a moment.</div>';
             return;
         }
 
@@ -349,13 +422,13 @@ window.likePost = async function(postId, btnEl) {
 };
 
 window.toggleComments = function(postId) {
-    document.getElementById(`comments-${postId}`).classList.toggle('hidden');
+    document.getElementById(`comments-${postId}`)?.classList.toggle('hidden');
 };
 
 window.addComment = async function(postId) {
     const input = document.getElementById(`comment-input-${postId}`);
     const text = input.value.trim();
-    if (!text) return;
+    if (!text || !currentUser) return;
 
     try {
         await fetch(`${API_BASE}/posts/${postId}/comments`, {
@@ -376,18 +449,19 @@ function initChatSystem() {
     renderChatSidebar();
     loadChatMessages();
 
-    document.getElementById('chat-send-btn').addEventListener('click', sendChatMessage);
-    document.getElementById('chat-text-input').addEventListener('keypress', (e) => {
+    document.getElementById('chat-send-btn')?.addEventListener('click', sendChatMessage);
+    document.getElementById('chat-text-input')?.addEventListener('keypress', (e) => {
         if (e.key === 'Enter') sendChatMessage();
     });
 
-    document.getElementById('chat-quick-bill-btn').addEventListener('click', sendBillRequestInChat);
-    document.getElementById('chat-voice-btn').addEventListener('click', triggerVoiceSplit);
+    document.getElementById('chat-quick-bill-btn')?.addEventListener('click', sendBillRequestInChat);
+    document.getElementById('chat-voice-btn')?.addEventListener('click', triggerVoiceSplit);
 }
 
 function renderChatSidebar() {
     const squadListEl = document.getElementById('squad-channels-list');
     const directListEl = document.getElementById('direct-chats-list');
+    if (!squadListEl || !directListEl) return;
 
     squadListEl.innerHTML = squads.map(s => `
         <div class="chat-item ${activeChat.type === 'group' && activeChat.id === s.id ? 'active' : ''}" onclick="selectChat('group', '${s.id}', '${s.name}', '${s.avatar}')">
@@ -417,8 +491,9 @@ window.selectChat = function(type, id, name, avatar) {
 };
 
 async function loadChatMessages() {
-    if (!currentUser) return;
+    if (!currentUser || !activeChat.id) return;
     const container = document.getElementById('chat-messages-container');
+    if (!container) return;
 
     try {
         let url = `${API_BASE}/messages?chat_type=${activeChat.type}&target_id=${activeChat.id}&sender_id=${currentUser.id}`;
@@ -462,7 +537,7 @@ async function loadChatMessages() {
 async function sendChatMessage() {
     const input = document.getElementById('chat-text-input');
     const text = input.value.trim();
-    if (!text || !currentUser) return;
+    if (!text || !currentUser || !activeChat.id) return;
 
     try {
         await fetch(`${API_BASE}/messages`, {
@@ -545,15 +620,26 @@ function connectWebSocket() {
     };
 }
 
-// --- TAB 3: SQUADS & EXPENSES ---
+// --- TAB 3: SQUADS & SQUAD CREATION ---
 
 async function loadSquads() {
     const container = document.getElementById('squads-container');
+    if (!container) return;
+
+    if (squads.length === 0) {
+        container.innerHTML = `
+            <div style="color:var(--text-muted); grid-column:1/-1;">
+                No squads created yet. Click <strong>Create Squad</strong> to start your first group!
+            </div>
+        `;
+        return;
+    }
+
     container.innerHTML = squads.map(s => `
         <div class="glass-card squad-card" onclick="viewSquadDetail('${s.id}')">
             <img class="squad-card-img" src="${s.avatar}" alt="${s.name}">
             <div class="squad-card-title">${s.name}</div>
-            <div style="font-size:0.85rem; color:var(--text-muted);">${s.description}</div>
+            <div style="font-size:0.85rem; color:var(--text-muted);">${s.description || 'Squad group'}</div>
             <div class="squad-members-avatars">
                 ${(s.members || []).map(m => `<img src="${m.avatar}" alt="${m.name}">`).join('')}
             </div>
@@ -575,6 +661,11 @@ window.viewSquadDetail = async function(squadId) {
         const summary = await res.json();
 
         const listEl = document.getElementById('squad-expenses-list');
+        if (summary.expenses.length === 0) {
+            listEl.innerHTML = '<div style="color:var(--text-muted);">No expenses logged in this squad yet.</div>';
+            return;
+        }
+
         listEl.innerHTML = summary.expenses.map(e => {
             const payer = users.find(u => u.id === e.paid_by);
             return `
@@ -607,11 +698,13 @@ document.getElementById('back-to-squads-btn')?.addEventListener('click', () => {
 
 async function loadItineraries(squadId) {
     const selectEl = document.getElementById('itinerary-squad-select');
+    if (!selectEl) return;
     selectEl.innerHTML = squads.map(s => `<option value="${s.id}" ${s.id === squadId ? 'selected' : ''}>${s.name}</option>`).join('');
 
     selectEl.onchange = (e) => loadItineraries(e.target.value);
 
     const container = document.getElementById('itinerary-cards-container');
+    if (!container) return;
     container.innerHTML = '<div style="color:var(--text-muted);">Loading itinerary events...</div>';
 
     try {
@@ -661,6 +754,7 @@ window.voteItinerary = async function(id, btnEl) {
 
 async function loadDebtGraph(squadId) {
     const selectEl = document.getElementById('settle-squad-select');
+    if (!selectEl) return;
     selectEl.innerHTML = squads.map(s => `<option value="${s.id}" ${s.id === squadId ? 'selected' : ''}>${s.name}</option>`).join('');
 
     selectEl.onchange = (e) => loadDebtGraph(e.target.value);
@@ -676,7 +770,7 @@ async function loadDebtGraph(squadId) {
             return `
                 <div class="balance-item">
                     <div style="display:flex; align-items:center; gap:8px;">
-                        <img src="${user?.avatar}" style="width:28px; height:28px; border-radius:50%;">
+                        <img src="${user?.avatar || ''}" style="width:28px; height:28px; border-radius:50%;">
                         <span>${user?.name || uid}</span>
                     </div>
                     <span class="balance-amount ${isPos ? 'positive' : 'negative'}">
@@ -699,9 +793,9 @@ async function loadDebtGraph(squadId) {
             return `
                 <div class="settlement-card-item">
                     <div class="settle-flow">
-                        <span>${fromUser?.name}</span>
+                        <span>${fromUser?.name || d.from_user}</span>
                         <i class="fa-solid fa-arrow-right-long"></i>
-                        <span>${toUser?.name}</span>
+                        <span>${toUser?.name || d.to_user}</span>
                     </div>
                     <div style="display:flex; align-items:center; gap:10px;">
                         <strong style="color:var(--accent-amber); font-size:1.1rem;">$${d.amount.toFixed(2)}</strong>
@@ -771,9 +865,9 @@ async function loadAnalytics() {
 async function loadUserSettings() {
     if (!currentUser) return;
 
-    document.getElementById('setting-name-input').value = currentUser.name;
-    document.getElementById('setting-handle-input').value = currentUser.handle;
-    document.getElementById('setting-avatar-input').value = currentUser.avatar;
+    document.getElementById('setting-name-input').value = currentUser.name || '';
+    document.getElementById('setting-handle-input').value = currentUser.handle || '';
+    document.getElementById('setting-avatar-input').value = currentUser.avatar || '';
     document.getElementById('setting-bio-input').value = currentUser.bio || '';
     document.getElementById('setting-venmo-input').value = currentUser.venmo_handle || '';
     document.getElementById('setting-zelle-input').value = currentUser.zelle_handle || '';
@@ -869,22 +963,73 @@ function applyTheme(themeName) {
 // --- MODALS ---
 
 function initModals() {
+    // 1. Add Expense Modal
     const addExpBtn = document.getElementById('open-add-expense-modal');
     const expModal = document.getElementById('add-expense-modal');
-
     addExpBtn?.addEventListener('click', () => {
         populateExpenseModalFields();
         expModal.classList.remove('hidden');
     });
 
+    // 2. Create Post Modal
     const addPostBtn = document.getElementById('open-create-post-modal');
     const postModal = document.getElementById('create-post-modal');
-
     addPostBtn?.addEventListener('click', () => {
         populatePostModalFields();
         postModal.classList.remove('hidden');
     });
 
+    // 3. Create Squad Modal
+    const createSquadModal = document.getElementById('create-squad-modal');
+    const openSquadBtn1 = document.getElementById('open-create-squad-modal');
+    const openSquadBtn2 = document.getElementById('open-create-squad-modal-2');
+
+    const openSquadModalHandler = () => {
+        const checkboxesEl = document.getElementById('squad-members-checkboxes');
+        checkboxesEl.innerHTML = users.map(u => `
+            <label style="display:flex; align-items:center; gap:8px; font-size:0.85rem; cursor:pointer;">
+                <input type="checkbox" name="squad_member" value="${u.id}" ${u.id === currentUser?.id ? 'checked' : ''}>
+                <img src="${u.avatar}" style="width:20px; height:20px; border-radius:50%;">
+                <span>${u.name}</span>
+            </label>
+        `).join('');
+        createSquadModal.classList.remove('hidden');
+    };
+
+    openSquadBtn1?.addEventListener('click', openSquadModalHandler);
+    openSquadBtn2?.addEventListener('click', openSquadModalHandler);
+
+    document.getElementById('create-squad-form')?.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const name = document.getElementById('squad-name-input').value;
+        const description = document.getElementById('squad-desc-input').value;
+        const category = document.getElementById('squad-cat-select').value;
+        const avatar = document.getElementById('squad-avatar-input').value || 'https://images.unsplash.com/photo-1542601906990-b4d3fb778b09?w=300';
+        
+        const member_ids = Array.from(document.querySelectorAll('input[name="squad_member"]:checked')).map(cb => cb.value);
+        if (currentUser && !member_ids.includes(currentUser.id)) member_ids.push(currentUser.id);
+
+        try {
+            const res = await fetch(`${API_BASE}/squads`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name, description, avatar, category, member_ids })
+            });
+
+            if (res.ok) {
+                createSquadModal.classList.add('hidden');
+                const squadsRes = await fetch(`${API_BASE}/squads`);
+                squads = await squadsRes.json();
+                loadSquads();
+                renderChatSidebar();
+                alert(`Squad "${name}" created successfully! 🎉`);
+            }
+        } catch (err) {
+            console.error(err);
+        }
+    });
+
+    // 4. OCR Scanner Modal
     const ocrBtn = document.getElementById('open-ocr-modal');
     const ocrModal = document.getElementById('ocr-modal');
     ocrBtn?.addEventListener('click', () => ocrModal.classList.remove('hidden'));
@@ -913,6 +1058,7 @@ function initModals() {
         `;
     });
 
+    // 5. Add Itinerary Modal
     const addItinBtn = document.getElementById('open-add-itinerary-modal');
     const itinModal = document.getElementById('add-itinerary-modal');
     addItinBtn?.addEventListener('click', () => {
@@ -924,6 +1070,7 @@ function initModals() {
         btn.addEventListener('click', () => {
             expModal.classList.add('hidden');
             postModal.classList.add('hidden');
+            createSquadModal.classList.add('hidden');
             ocrModal.classList.add('hidden');
             itinModal.classList.add('hidden');
             document.getElementById('auth-modal')?.classList.add('hidden');
@@ -965,6 +1112,10 @@ function initModals() {
 
     document.getElementById('create-post-form')?.addEventListener('submit', async (e) => {
         e.preventDefault();
+        if (!currentUser) {
+            alert('Please login to share posts!');
+            return;
+        }
         const type = document.getElementById('post-type-select').value;
         const caption = document.getElementById('post-caption-input').value;
         const media_url = document.getElementById('post-media-input').value;
@@ -986,6 +1137,7 @@ function initModals() {
 
     document.getElementById('add-itinerary-form')?.addEventListener('submit', async (e) => {
         e.preventDefault();
+        if (!currentUser) return;
         const squad_id = document.getElementById('itin-squad-select').value;
         const title = document.getElementById('itin-title-input').value;
         const date = document.getElementById('itin-date-input').value;
@@ -1019,11 +1171,11 @@ function populateExpenseModalFields() {
     const squadSelect = document.getElementById('exp-squad-select');
     const userSelect = document.getElementById('exp-paidby-select');
 
-    squadSelect.innerHTML = squads.map(s => `<option value="${s.id}">${s.name}</option>`).join('');
-    userSelect.innerHTML = users.map(u => `<option value="${u.id}" ${u.id === currentUser?.id ? 'selected' : ''}>${u.name}</option>`).join('');
+    if (squadSelect) squadSelect.innerHTML = squads.map(s => `<option value="${s.id}">${s.name}</option>`).join('');
+    if (userSelect) userSelect.innerHTML = users.map(u => `<option value="${u.id}" ${u.id === currentUser?.id ? 'selected' : ''}>${u.name}</option>`).join('');
 }
 
 function populatePostModalFields() {
     const squadSelect = document.getElementById('post-squad-select');
-    squadSelect.innerHTML = '<option value="">No Squad Tag</option>' + squads.map(s => `<option value="${s.id}">${s.name}</option>`).join('');
+    if (squadSelect) squadSelect.innerHTML = '<option value="">No Squad Tag</option>' + squads.map(s => `<option value="${s.id}">${s.name}</option>`).join('');
 }
